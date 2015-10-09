@@ -19,34 +19,66 @@ export const compileHtmlAndScope = ({component, html, initialScope}) => {
   return {parentScope, element, controller, isolateScope};
 };
 
+
+
+// todo: have DebugElement be a jquery object that is decorated
+export class DebugElement {
+  constructor({nativeElement, componentInstance}) {
+    console.log('new DebugElement', nativeElement, componentInstance);
+    this._nativeElement = nativeElement;
+    this._componentInstance = componentInstance;
+    this._componentViewChildren = null;
+  }
+  get componentInstance() { return this._componentInstance; }
+  get nativeElement() { return this._nativeElement; }
+  get componentViewChildren() {
+    if (this._componentViewChildren) {
+      return this._componentViewChildren;
+    }
+
+    let children = [...this._nativeElement.children()]
+        .map(el => {
+          let isolateScope = angular.element(el).isolateScope();
+          let name = dashToCamel(el.tagName.toLowerCase());
+          let componentInstance = isolateScope[name];
+          return new DebugElement({nativeElement: angular.element(el), componentInstance})
+        });
+
+    return this._componentViewChildren = children;
+
+  }
+  get elementRef() { throw new Error('not implemented'); }
+  get children() { throw new Error('not implemented'); }
+}
+
+
+
 export const compileComponent = (componentClass) => {
 
   let selector = appWriter.get('selector', componentClass);
-  let parentScope, elementRef, component, isolateScope;
+  let parentScope, nativeElement, component, isolateScope, componentInstance;
 
   inject(($compile, $rootScope) => {
     let controllerAs = componentWriter.get('controllerAs', componentClass);
     let template = componentWriter.get('template', componentClass);
-    let componentInstance = new componentClass();
-
+    componentInstance = new componentClass();
     parentScope = $rootScope.$new();
     parentScope[controllerAs] = componentInstance;
-    elementRef = angular.element(template);
-    elementRef = $compile(elementRef)(parentScope);
+    nativeElement = angular.element(`<span>${template}</span>`);
+    nativeElement = $compile(nativeElement)(parentScope);
     parentScope.$digest();
-
-    isolateScope = elementRef.isolateScope();
-    component = isolateScope.someComponent;
-
-    console.log(1, Object.keys(isolateScope).filter(k => !k.startsWith('$')));
-    console.log(2, isolateScope.someComponent);
-    console.log(2, isolateScope.test);
-    console.log(2, component);
-    console.log(3, Object.keys(parentScope).filter(k => !k.startsWith('$')));
   });
 
-  return {elementRef, component, isolateScope, parentScope};
+  return {
+    debugElement: new DebugElement({
+      nativeElement,
+      componentInstance
+    }),
+    detectChanges() { parentScope.$digest(); }
+  };
 };
+
+
 
 let _bindings = [];
 
@@ -60,8 +92,13 @@ export const bind = token => ({
 });
 
 export const bindings = (bindFn) => {
-  bindFn(bind);
+  return isSpecRunning() ? workFn() : workFn;
+  function workFn() {
+    bindFn(bind);
+  }
 };
+
+
 
 export class TestComponentBuilder {
   create(rootComponent) {
@@ -73,12 +110,13 @@ export class TestComponentBuilder {
       });
     });
 
-    componentWriter.forEach((val, key) => ::console.log(key, val),
-        rootComponent);
+    //componentWriter.forEach((val, key) => ::console.log(key, val),
+    //    rootComponent);
 
-    let compiledComponent = compileComponent(rootComponent);
+    let rootTC = compileComponent(rootComponent);
     _bindings = [];
-    return compiledComponent;
+
+    return rootTC;
   }
 
   overrideTemplate()      { throw new Error('not implemented'); }
@@ -86,4 +124,36 @@ export class TestComponentBuilder {
   overrideDirective()     { throw new Error('not implemented'); }
   overrideBindings()      { throw new Error('not implemented'); }
   overrideViewBindings()  { throw new Error('not implemented'); }
+}
+
+
+
+var currentSpec = null;
+function isSpecRunning() {
+  return !!currentSpec;
+}
+if (window.jasmine || window.mocha) {
+  (window.beforeEach || window.setup)(function () {
+    currentSpec = this;
+  });
+  (window.afterEach || window.teardown)(function () {
+    currentSpec = null;
+  });
+}
+
+
+
+export function camelToSnake(camelCase) {
+  return camelCase.replace(/[A-Z]/g, function (match, pos) {
+    return (pos > 0 ? '_' : '') + match.toLowerCase()
+  })
+}
+
+export function ucFirst(word) {
+  return word.charAt(0).toUpperCase() + word.substr(1)
+}
+
+export function dashToCamel(dash) {
+  var words = dash.split('-')
+  return words.shift() + words.map(exports.ucFirst).join('')
 }

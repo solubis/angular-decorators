@@ -7,7 +7,7 @@ import {Inject} from '../decorators/inject';
 import bundle from '../bundle';
 import bootstrap from '../bootstrap';
 import {ng} from '../tests/angular';
-import {compileHtmlAndScope, compileComponent, bindings, TestComponentBuilder} from '../tests/utils';
+import {compileHtmlAndScope, compileComponent, bindings, TestComponentBuilder, DebugElement} from '../tests/utils';
 
 import {providerWriter} from '../writers';
 
@@ -167,47 +167,11 @@ describe('properties-builder', () => {
     });
   });
 
-  //describe('Angular Integration', () => {
-  //  let element;
-  //  let parentScope;
-  //  let controller;
-  //  let isolateScope;
-  //
-  //  beforeEach(() => {
-  //    ng.useReal();
-  //  });
-  //
-  //  beforeEach(() => {
-  //    @Component({
-  //      selector: 'thing',
-  //      properties: ['foo', 'baz:bar']
-  //    })
-  //    @View({
-  //      template: `{{thing.foo}} {{thing.baz}}`
-  //    })
-  //    class Thing {
-  //      quux() {}
-  //    }
-  //
-  //    var x = bundle('thing', Thing);
-  //    angular.mock.module(x.name);
-  //
-  //    let component = Thing;
-  //    let html = '<thing foo="Hello" [bar]="bar"></thing>';
-  //    let initialScope = { bar: 'World' };
-  //
-  //    ({parentScope, element, controller, isolateScope}
-  //        = compileComponent({component, html, initialScope}));
-  //  });
-  //
-  //  it('should pass component properties into isolatedScope', () => {
-  //    expect(element.text()).to.equal("Hello World");
-  //  });
-  //});
 
   class SomeService {
     getData() { return 'real success' }
   }
+
 
   @Component({
     selector: 'some-component',
@@ -238,40 +202,63 @@ describe('properties-builder', () => {
     }
   }
 
-  describe.only('Angular Integration 1', () => {
-    let elementRef;
-    let parentScope;
+  describe.only('Angular Integration New (matches Angular 2 api)', () => {
     let component;
-    let isolateScope;
     let mockSomeService;
     let tcb;
+    let rootTC;
 
     beforeEach(() => {
       ng.useReal();
       tcb = new TestComponentBuilder();
     });
 
-    beforeEach(() => {
-      bindings(bind => {
-        mockSomeService = {
-          getData: sinon.stub().returns('mock success')
-        };
+    beforeEach(bindings(bind => {
+      mockSomeService = {
+        getData: sinon.stub().returns('mock success')
+      };
 
-        return [
-          bind(SomeService).toValue(mockSomeService)
-        ];
-      });
-    });
+      return [
+        bind(SomeService).toValue(mockSomeService)
+      ];
+    }));
 
     it('component test', () => {
-      ({parentScope, elementRef, component, isolateScope} =
-          tcb.create(TestComponent));
-      expect(elementRef.text()).to.equal("Hello World mock success");
+      rootTC = tcb.create(TestComponent);
+
+      expect(rootTC).to.have.property('debugElement')
+          .that.is.an.instanceOf(DebugElement);
+
+      expect(rootTC.debugElement.nativeElement[0])
+          .to.be.an.instanceOf(HTMLElement);
+
+      expect(rootTC.debugElement.componentInstance)
+          .to.be.an.instanceOf(TestComponent);
+
+      expect(rootTC.debugElement.componentViewChildren)
+          .to.be.an('array');
+
+      expect(rootTC.debugElement.componentViewChildren[0])
+          .to.be.an.instanceOf(DebugElement);
+
+      expect(rootTC.debugElement.componentViewChildren[0].nativeElement[0])
+          .to.be.an.instanceOf(HTMLElement);
+
+      expect(rootTC.debugElement.componentViewChildren[0].componentInstance)
+          .to.be.an.instanceOf(SomeComponent);
+
+      let someComponent = rootTC.debugElement.componentViewChildren[0].nativeElement;
+
+      expect(someComponent.text()).to.equal("Hello World mock success");
       expect(mockSomeService.getData).to.have.been.called;
+
+      rootTC.debugElement.componentInstance.bar = "Angular 2";
+      rootTC.detectChanges();
+      expect(someComponent.text()).to.equal("Hello Angular 2 mock success");
     });
   });
 
-  describe('Angular Integration 2', () => {
+  describe('Angular Integration Original', () => {
     let element;
     let parentScope;
     let controller;
