@@ -3,10 +3,13 @@ import '../tests/frameworks';
 import {propertiesMap, propertiesBuilder} from './properties-builder';
 import {Component} from '../decorators/providers/component';
 import {View} from '../decorators/component/view';
+import {Inject} from '../decorators/inject';
 import bundle from '../bundle';
 import bootstrap from '../bootstrap';
 import {ng} from '../tests/angular';
-import {compileComponent} from '../tests/utils';
+import {compileHtmlAndScope, compileComponent, bindings, TestComponentBuilder} from '../tests/utils';
+
+import {providerWriter} from '../writers';
 
 describe('properties-builder', () => {
 
@@ -164,7 +167,111 @@ describe('properties-builder', () => {
     });
   });
 
-  describe('Angular Integration', () => {
+  //describe('Angular Integration', () => {
+  //  let element;
+  //  let parentScope;
+  //  let controller;
+  //  let isolateScope;
+  //
+  //  beforeEach(() => {
+  //    ng.useReal();
+  //  });
+  //
+  //  beforeEach(() => {
+  //    @Component({
+  //      selector: 'thing',
+  //      properties: ['foo', 'baz:bar']
+  //    })
+  //    @View({
+  //      template: `{{thing.foo}} {{thing.baz}}`
+  //    })
+  //    class Thing {
+  //      quux() {}
+  //    }
+  //
+  //    var x = bundle('thing', Thing);
+  //    angular.mock.module(x.name);
+  //
+  //    let component = Thing;
+  //    let html = '<thing foo="Hello" [bar]="bar"></thing>';
+  //    let initialScope = { bar: 'World' };
+  //
+  //    ({parentScope, element, controller, isolateScope}
+  //        = compileComponent({component, html, initialScope}));
+  //  });
+  //
+  //  it('should pass component properties into isolatedScope', () => {
+  //    expect(element.text()).to.equal("Hello World");
+  //  });
+  //});
+
+  class SomeService {
+    getData() { return 'real success' }
+  }
+
+  @Component({
+    selector: 'some-component',
+    properties: ['foo', 'baz:bar'],
+    bindings: [SomeService]
+  })
+  @View({
+    template: `{{someComponent.foo}} {{someComponent.baz}} {{someComponent.quux()}}`
+  })
+  @Inject(SomeService)
+  class SomeComponent {
+    constructor(SomeService) {
+      console.log('hi', SomeService)
+      Object.assign(this, {SomeService});
+    }
+    quux() { return this.SomeService.getData() }
+  }
+
+
+  @Component({selector: 'test'})
+  @View({
+    template: `<some-component foo="Hello" [bar]="test.bar"></some-component>`,
+    directives: [SomeComponent]
+  })
+  class TestComponent {
+    constructor() {
+      this.bar = "World";
+    }
+  }
+
+  describe.only('Angular Integration 1', () => {
+    let elementRef;
+    let parentScope;
+    let component;
+    let isolateScope;
+    let mockSomeService;
+    let tcb;
+
+    beforeEach(() => {
+      ng.useReal();
+      tcb = new TestComponentBuilder();
+    });
+
+    beforeEach(() => {
+      bindings(bind => {
+        mockSomeService = {
+          getData: sinon.stub().returns('mock success')
+        };
+
+        return [
+          bind(SomeService).toValue(mockSomeService)
+        ];
+      });
+    });
+
+    it('component test', () => {
+      ({parentScope, elementRef, component, isolateScope} =
+          tcb.create(TestComponent));
+      expect(elementRef.text()).to.equal("Hello World mock success");
+      expect(mockSomeService.getData).to.have.been.called;
+    });
+  });
+
+  describe('Angular Integration 2', () => {
     let element;
     let parentScope;
     let controller;
@@ -174,31 +281,23 @@ describe('properties-builder', () => {
       ng.useReal();
     });
 
-    beforeEach(() => {
-      @Component({
-        selector: 'thing',
-        properties: ['foo', 'baz:bar']
-      })
-      @View({
-        template: `{{thing.foo}} {{thing.baz}}`
-      })
-      class Thing {
-        quux() {}
-      }
+    it('component test 1', () => {
+      var ngfModule = bundle('someComponent', SomeComponent);
+      angular.mock.module(ngfModule.name);
+      angular.mock.module($provide => {
+        $provide.value(providerWriter.get('name', SomeService), {
+          getData() { return 'mock success' }
+        });
+      });
 
-      var x = bundle('thing', Thing);
-      angular.mock.module(x.name);
-
-      let component = Thing;
-      let html = '<thing foo="Hello" [bar]="bar"></thing>';
+      let component = SomeComponent;
+      let html = '<some-component foo="Hello" [bar]="bar"></some-component>';
       let initialScope = { bar: 'World' };
 
       ({parentScope, element, controller, isolateScope}
-          = compileComponent({component, html, initialScope}));
-    });
+          = compileHtmlAndScope({component, html, initialScope}));
 
-    it('should pass component properties into isolatedScope', () => {
-      expect(element.text()).to.equal("Hello World");
+      expect(element.text()).to.equal("Hello World mock success");
     });
   });
 
