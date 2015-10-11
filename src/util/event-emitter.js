@@ -1,7 +1,7 @@
 /* global setTimeout */
 // # EventEmitter class
 // Simple re-implementation of Angular 2's [EventEmitter](https://github.com/angular/angular/blob/master/modules/angular2/src/facade/async.ts#L97)
-import {Subject} from 'rx';
+import {Subject} from 'rx-lite';
 
 export class EventEmitter{
   _subject = new Subject();
