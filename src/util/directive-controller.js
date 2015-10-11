@@ -10,8 +10,6 @@
 import {propertiesBuilder} from './properties-builder';
 // Also need the eventsBuilder for creating event emittors
 import eventsBuilder from './events-builder';
-// Finally extend for extending the instance of the controller
-import extend from 'extend';
 
 // ## Factory
 // Needs the injection array, the controller class, and the directive definition
@@ -27,7 +25,7 @@ export default function createDirectiveController(caller, injects, controller, d
   // Remember, angular has alrady set those bindings on the prototype of the calling
   // function. Now we need to extend them onto our instance. important
   // to extend after building the properties that way we fire the setters
-  extend(instance, caller);
+  Object.assign(instance, caller);
 
   // Finally, invoke the constructor using the injection array and the captured
   // locals
