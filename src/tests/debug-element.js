@@ -13,22 +13,20 @@ export function debugElementFactory({nativeElement, componentInstance}) {
 
   Object.defineProperties(debugElement, {
 
-    _nativeElement: { value: nativeElement },
-    _componentInstance: { value: componentInstance },
     _componentViewChildren: { value: null, writable: true },
 
     /**
      * @returns {Component Instance}
      */
     componentInstance: {
-      get() { return this._componentInstance; }
+      get() { return componentInstance; }
     },
 
     /**
      * @returns {Native DOM Element}
      */
     nativeElement: {
-      get() { return this._nativeElement; }
+      get() { return nativeElement; }
     },
 
     /**
@@ -65,6 +63,6 @@ export function ucFirst(word) {
 }
 
 export function dashToCamel(dash) {
-  var words = dash.split('-')
+  var words = dash.split('-');
   return words.shift() + words.map(ucFirst).join('')
 }

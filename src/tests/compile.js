@@ -1,34 +1,35 @@
 import {appWriter, componentWriter} from '../writers';
 import { debugElementFactory } from './debug-element';
+import { RootTestComponent } from './test-component-builder';
 
 /**
- * A function for compiling a decorated component into a root test component
- * @param componentClass
- * @returns {{debugElement: *, detectChanges: (function())}}
+ * A function for compiling a decorated component into a RootTestComponent
+ *
+ * @param ComponentClass
+ * @returns {RootTestComponent}
  */
-export const compileComponent = (componentClass) => {
+export const compileComponent = (ComponentClass) => {
 
-  let selector = appWriter.get('selector', componentClass);
-  let parentScope, element, componentInstance;
+  let selector = appWriter.get('selector', ComponentClass);
+  let rootTestScope, element, componentInstance;
 
   inject(($compile, $rootScope) => {
-    let controllerAs = componentWriter.get('controllerAs', componentClass);
-    let template = componentWriter.get('template', componentClass);
-    componentInstance = new componentClass();
-    parentScope = $rootScope.$new();
-    parentScope[controllerAs] = componentInstance;
+    let controllerAs = componentWriter.get('controllerAs', ComponentClass);
+    let template = componentWriter.get('template', ComponentClass);
+    componentInstance = new ComponentClass();
+    rootTestScope = $rootScope.$new();
+    rootTestScope[controllerAs] = componentInstance;
     element = angular.element(`<span>${template}</span>`);
-    element = $compile(element)(parentScope);
-    parentScope.$digest();
+    element = $compile(element)(rootTestScope);
+    rootTestScope.$digest();
   });
 
-  return {
-    debugElement: debugElementFactory({
-      nativeElement: element[0],
-      componentInstance
-    }),
-    detectChanges() { parentScope.$digest(); }
-  };
+  let debugElement = debugElementFactory({
+    nativeElement: element[0],
+    componentInstance
+  });
+
+  return new RootTestComponent({debugElement, rootTestScope});
 };
 
 

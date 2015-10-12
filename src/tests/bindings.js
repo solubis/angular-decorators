@@ -1,6 +1,4 @@
 import { providerWriter } from '../writers';
-import bundle from '../bundle';
-import { compileComponent } from './compile';
 
 /**
  * Stores references to all bindings. Is cleared by TestComponentBuilder after a create call.
@@ -10,78 +8,60 @@ import { compileComponent } from './compile';
 let _bindings = [];
 
 /**
- * Will add a binding object to the private bindings array.
- * Bindings are used during TestComponentBuilder's create call.
- * @param token
- */
-export const bind = token => ({
-  toValue(value) {
-    _bindings.push({token: providerWriter.get('name', token), value});
-  },
-  toClass() { throw new Error('not implemented'); },
-  toAlias() { throw new Error('not implemented'); },
-  toFactory() { throw new Error('not implemented'); }
-});
-
-// todo: create Binding class, right now the return of array in beforeEach is too faked out
-
-/**
- * A sugar function for use in a beforeEach block. Can use in one of two ways:
+ * A sugar function for use in a beforeEach block. It's passed the bind method for
+ * creating bindings. Can use in one of two ways:
  *
  * beforeEach(bindings(bind => {}));
  * or
  * beforeEach(() => {
  *   bindings(bind => {});
  * })
- * @param bindFn
+ * @param bindFn(bind): <Bindings>
  * @returns {workFn}
  */
 export const bindings = (bindFn) => {
   return isSpecRunning() ? workFn() : workFn;
   function workFn() {
-    bindFn(bind);
+    _bindings.push(...bindFn(bind));
   }
 };
 
 /**
- * TestComponentBuilder
- *
- * The preferred way to test components
+ * A binding from a token to a value (only one implemented currently), class, alias, or factory
  */
-export class TestComponentBuilder {
-
-  /**
-   * Takes a root component, typically a test component whose template houses another component
-   * under testing. Returns a rootTC (root test component) that contains a debugElement reference
-   * to the test component (which you can use to drill down to the component under test) as well
-   * as a detectChanges method which aliases to a scope digest call.
-   *
-   * @param rootComponent
-   * @returns {{debugElement, detectChanges}|{debugElement: *, detectChanges: (function())}}
-   */
-  create(rootComponent) {
-    let decoratedModule = bundle('test', rootComponent);
-    angular.mock.module(decoratedModule.name);
-    angular.mock.module($provide => {
-      _bindings.forEach(({token, value}) => {
-        $provide.value(token, value);
-      });
-    });
-
-    let rootTC = compileComponent(rootComponent);
-    _bindings = [];
-
-    // todo: create RootTestComponent class
-    return rootTC;
+export class Binding {
+  constructor(token) {
+    this.token = providerWriter.get('name', token);
   }
-
-  overrideTemplate()      { throw new Error('not implemented'); }
-  overrideView()          { throw new Error('not implemented'); }
-  overrideDirective()     { throw new Error('not implemented'); }
-  overrideBindings()      { throw new Error('not implemented'); }
-  overrideViewBindings()  { throw new Error('not implemented'); }
+  toValue(value) {
+    this.value = value;
+    return this;
+  }
+  toClass() { throw new Error('not implemented'); }
+  toAlias() { throw new Error('not implemented'); }
+  toFactory() { throw new Error('not implemented'); }
 }
 
+Object.defineProperties(Binding, {
+  bindings: {
+    get() { return angular.copy(_bindings); }
+  },
+  clear: {
+    value: () => _bindings = []
+  }
+});
+
+
+/**
+ * Sugar for creating a new binding.
+ * @param token
+ */
+export const bind = token => {
+  return new Binding(token);
+};
+
+
+// helpers for mocha and jasmine beforeEach
 var currentSpec = null;
 function isSpecRunning() {
   return !!currentSpec;
